@@ -1,6 +1,6 @@
-# otus-module2-bulk
+# otus-module3-bulkmt
 
-OTUS modile 2 homework - _bulk_
+OTUS modile 3 homework - _bulkmt_
 
 ## installation
 ```
@@ -8,7 +8,7 @@ $ curl -sSL "https://bintray.com/user/downloadSubjectPublicKey?username=bintray"
 $ echo "deb http://dl.bintray.com/gpgolikov/otus-cpp xenial main" | tee -a /etc/apt/sources.list.d/otus.list
 
 $ apt update
-$ apt install bulk
+$ apt install bulkmt
 ```
 
 ## installation of libc++1-7
