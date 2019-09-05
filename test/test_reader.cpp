@@ -3,6 +3,7 @@
 #include <iostream>
 #include <sstream>
 #include <memory>
+#include <vector>
 
 #include <statement.h>
 #include <reader.h>
@@ -17,25 +18,20 @@ using namespace Catch::Matchers;
 
 struct ReaderMonitor : ReaderSubscriber {
 
-    std::vector<std::pair<StatementPtr, StatementContainer>> blocks;
+    std::vector<StatementContainer> blocks;
+    StatementContainer broken_block;
 
     void clear() {
         blocks.clear();
+        broken_block.clear();
     }
 
-    void on_block_begin() override {
-        blocks.emplace_back(nullptr, StatementContainer{});
+    void on_block(const StatementContainer& stms) override {
+        blocks.push_back(stms);
     }
 
-    void on_block_end() override {
-        REQUIRE_FALSE(blocks.empty());
-        REQUIRE_FALSE(blocks.back().second.empty());
-        blocks.back().first = blocks.back().second.front(); 
-    }
-
-    void on_new_statement(StatementPtr stm) override {
-        REQUIRE_FALSE(blocks.empty());
-        blocks.back().second.push_back(std::move(stm));
+    void on_unexpected_eof(const StatementContainer& stms) override {
+        broken_block = stms;
     }
 };
 
@@ -55,17 +51,16 @@ TEST_CASE("Reader", "[reader]") {
             "cmd5\n"
             "cmd6\n"s);
 
-        reader.run(is);
+        auto metrics = reader.run(is);
+        REQUIRE_THAT(metrics.nlines, Equals(6));
+        REQUIRE_THAT(metrics.nstatements, Equals(6));
+        REQUIRE_THAT(metrics.nblocks, Equals(2));
 
         REQUIRE_THAT(monitor->blocks.size(), Equals(2));
+        REQUIRE(monitor->broken_block.empty());
         // check first block
-        REQUIRE(monitor->blocks.front().first);
-        auto first_statement = dynamic_pointer_cast<SomeStatement>(monitor->blocks.front().first);
-        REQUIRE(first_statement);
-        REQUIRE_THAT(first_statement->value(), Equals("cmd1"));
-        auto& block1 = monitor->blocks.front().second;
+        auto& block1 = monitor->blocks.front();
         REQUIRE_THAT(block1.size(), Equals(3));
-        REQUIRE(block1[0] == first_statement);
         auto statement = dynamic_pointer_cast<SomeStatement>(block1[0]);
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd1"));
@@ -76,13 +71,8 @@ TEST_CASE("Reader", "[reader]") {
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd3"));
         // check second block
-        REQUIRE(monitor->blocks.back().first);
-        first_statement = dynamic_pointer_cast<SomeStatement>(monitor->blocks.back().first);
-        REQUIRE(first_statement);
-        REQUIRE_THAT(first_statement->value(), Equals("cmd4"));
-        auto& block2 = monitor->blocks.back().second;
+        auto& block2 = monitor->blocks.back();
         REQUIRE_THAT(block2.size(), Equals(3));
-        REQUIRE(block2[0] == first_statement);
         statement = dynamic_pointer_cast<SomeStatement>(block2[0]);
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd4"));
@@ -103,17 +93,16 @@ TEST_CASE("Reader", "[reader]") {
             "cmd4\n"
             "cmd5"s);
 
-        reader.run(is);
+        auto metrics = reader.run(is);
+        REQUIRE_THAT(metrics.nlines, Equals(5));
+        REQUIRE_THAT(metrics.nstatements, Equals(5));
+        REQUIRE_THAT(metrics.nblocks, Equals(2));
 
         REQUIRE_THAT(monitor->blocks.size(), Equals(2));
+        REQUIRE(monitor->broken_block.empty());
         // check first block
-        REQUIRE(monitor->blocks.front().first);
-        auto first_statement = dynamic_pointer_cast<SomeStatement>(monitor->blocks.front().first);
-        REQUIRE(first_statement);
-        REQUIRE_THAT(first_statement->value(), Equals("cmd1"));
-        auto& block1 = monitor->blocks.front().second;
+        auto& block1 = monitor->blocks.front();
         REQUIRE_THAT(block1.size(), Equals(3));
-        REQUIRE(block1[0] == first_statement);
         auto statement = dynamic_pointer_cast<SomeStatement>(block1[0]);
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd1"));
@@ -124,13 +113,8 @@ TEST_CASE("Reader", "[reader]") {
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd3"));
         // check second block
-        REQUIRE(monitor->blocks.back().first);
-        first_statement = dynamic_pointer_cast<SomeStatement>(monitor->blocks.back().first);
-        REQUIRE(first_statement);
-        REQUIRE_THAT(first_statement->value(), Equals("cmd4"));
-        auto& block2 = monitor->blocks.back().second;
+        auto& block2 = monitor->blocks.back();
         REQUIRE_THAT(block2.size(), Equals(2));
-        REQUIRE(block2[0] == first_statement);
         statement = dynamic_pointer_cast<SomeStatement>(block2[0]);
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd4"));
@@ -152,17 +136,16 @@ TEST_CASE("Reader", "[reader]") {
             "cmd7\n"
             "}"s);
 
-        reader.run(is);
+        auto metrics = reader.run(is);
+        REQUIRE_THAT(metrics.nlines, Equals(9));
+        REQUIRE_THAT(metrics.nstatements, Equals(7));
+        REQUIRE_THAT(metrics.nblocks, Equals(2));
 
         REQUIRE_THAT(monitor->blocks.size(), Equals(2));
+        REQUIRE(monitor->broken_block.empty());
         // check first block
-        REQUIRE(monitor->blocks.front().first);
-        auto first_statement = dynamic_pointer_cast<SomeStatement>(monitor->blocks.front().first);
-        REQUIRE(first_statement);
-        REQUIRE_THAT(first_statement->value(), Equals("cmd1"));
-        auto& block1 = monitor->blocks.front().second;
+        auto& block1 = monitor->blocks.front();
         REQUIRE_THAT(block1.size(), Equals(3));
-        REQUIRE(block1[0] == first_statement);
         auto statement = dynamic_pointer_cast<SomeStatement>(block1[0]);
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd1"));
@@ -173,13 +156,8 @@ TEST_CASE("Reader", "[reader]") {
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd3"));
         // check second block
-        REQUIRE(monitor->blocks.back().first);
-        first_statement = dynamic_pointer_cast<SomeStatement>(monitor->blocks.back().first);
-        REQUIRE(first_statement);
-        REQUIRE_THAT(first_statement->value(), Equals("cmd4"));
-        auto& block2 = monitor->blocks.back().second;
+        auto& block2 = monitor->blocks.back();
         REQUIRE_THAT(block2.size(), Equals(4));
-        REQUIRE(block2[0] == first_statement);
         statement = dynamic_pointer_cast<SomeStatement>(block2[0]);
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd4"));
@@ -210,17 +188,16 @@ TEST_CASE("Reader", "[reader]") {
             "cmd9\n"
             "cmd10"s);
 
-        reader.run(is);
+        auto metrics = reader.run(is);
+        REQUIRE_THAT(metrics.nlines, Equals(12));
+        REQUIRE_THAT(metrics.nstatements, Equals(10));
+        REQUIRE_THAT(metrics.nblocks, Equals(3));
 
         REQUIRE_THAT(monitor->blocks.size(), Equals(3));
+        REQUIRE(monitor->broken_block.empty());
         // check first block
-        REQUIRE(monitor->blocks.front().first);
-        auto first_statement = dynamic_pointer_cast<SomeStatement>(monitor->blocks.front().first);
-        REQUIRE(first_statement);
-        REQUIRE_THAT(first_statement->value(), Equals("cmd1"));
-        auto& block1 = monitor->blocks.front().second;
+        auto& block1 = monitor->blocks.front();
         REQUIRE_THAT(block1.size(), Equals(3));
-        REQUIRE(block1[0] == first_statement);
         auto statement = dynamic_pointer_cast<SomeStatement>(block1[0]);
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd1"));
@@ -231,13 +208,8 @@ TEST_CASE("Reader", "[reader]") {
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd3"));
         // check second block
-        REQUIRE(monitor->blocks[1].first);
-        first_statement = dynamic_pointer_cast<SomeStatement>(monitor->blocks[1].first);
-        REQUIRE(first_statement);
-        REQUIRE_THAT(first_statement->value(), Equals("cmd4"));
-        auto& block2 = monitor->blocks[1].second;
+        auto& block2 = monitor->blocks[1];
         REQUIRE_THAT(block2.size(), Equals(4));
-        REQUIRE(block2[0] == first_statement);
         statement = dynamic_pointer_cast<SomeStatement>(block2[0]);
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd4"));
@@ -251,13 +223,8 @@ TEST_CASE("Reader", "[reader]") {
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd7"));
         // check third block
-        REQUIRE(monitor->blocks.back().first);
-        first_statement = dynamic_pointer_cast<SomeStatement>(monitor->blocks.back().first);
-        REQUIRE(first_statement);
-        REQUIRE_THAT(first_statement->value(), Equals("cmd8"));
-        auto& block3 = monitor->blocks.back().second;
+        auto& block3 = monitor->blocks.back();
         REQUIRE_THAT(block3.size(), Equals(3));
-        REQUIRE(block3[0] == first_statement);
         statement = dynamic_pointer_cast<SomeStatement>(block3[0]);
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd8"));
@@ -281,17 +248,16 @@ TEST_CASE("Reader", "[reader]") {
             "cmd7\n"
             "}"s);
 
-        reader.run(is);
+        auto metrics = reader.run(is);
+        REQUIRE_THAT(metrics.nlines, Equals(8));
+        REQUIRE_THAT(metrics.nstatements, Equals(6));
+        REQUIRE_THAT(metrics.nblocks, Equals(2));
 
         REQUIRE_THAT(monitor->blocks.size(), Equals(2));
+        REQUIRE(monitor->broken_block.empty());
         // check first block
-        REQUIRE(monitor->blocks.front().first);
-        auto first_statement = dynamic_pointer_cast<SomeStatement>(monitor->blocks.front().first);
-        REQUIRE(first_statement);
-        REQUIRE_THAT(first_statement->value(), Equals("cmd1"));
-        auto& block1 = monitor->blocks.front().second;
+        auto& block1 = monitor->blocks.front();
         REQUIRE_THAT(block1.size(), Equals(2));
-        REQUIRE(block1[0] == first_statement);
         auto statement = dynamic_pointer_cast<SomeStatement>(block1[0]);
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd1"));
@@ -299,13 +265,8 @@ TEST_CASE("Reader", "[reader]") {
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd2"));
         // check second block
-        REQUIRE(monitor->blocks.back().first);
-        first_statement = dynamic_pointer_cast<SomeStatement>(monitor->blocks.back().first);
-        REQUIRE(first_statement);
-        REQUIRE_THAT(first_statement->value(), Equals("cmd4"));
-        auto& block2 = monitor->blocks.back().second;
+        auto& block2 = monitor->blocks.back();
         REQUIRE_THAT(block2.size(), Equals(4));
-        REQUIRE(block2[0] == first_statement);
         statement = dynamic_pointer_cast<SomeStatement>(block2[0]);
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd4"));
@@ -336,17 +297,16 @@ TEST_CASE("Reader", "[reader]") {
             "cmd9\n"
             "}"s);
 
-        reader.run(is);
+        auto metrics = reader.run(is);
+        REQUIRE_THAT(metrics.nlines, Equals(12));
+        REQUIRE_THAT(metrics.nstatements, Equals(8));
+        REQUIRE_THAT(metrics.nblocks, Equals(2));
 
         REQUIRE_THAT(monitor->blocks.size(), Equals(2));
+        REQUIRE(monitor->broken_block.empty());
         // check first block
-        REQUIRE(monitor->blocks.front().first);
-        auto first_statement = dynamic_pointer_cast<SomeStatement>(monitor->blocks.front().first);
-        REQUIRE(first_statement);
-        REQUIRE_THAT(first_statement->value(), Equals("cmd1"));
-        auto& block1 = monitor->blocks.front().second;
+        auto& block1 = monitor->blocks.front();
         REQUIRE_THAT(block1.size(), Equals(2));
-        REQUIRE(block1[0] == first_statement);
         auto statement = dynamic_pointer_cast<SomeStatement>(block1[0]);
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd1"));
@@ -354,13 +314,8 @@ TEST_CASE("Reader", "[reader]") {
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd2"));
         // check second block
-        REQUIRE(monitor->blocks.back().first);
-        first_statement = dynamic_pointer_cast<SomeStatement>(monitor->blocks.back().first);
-        REQUIRE(first_statement);
-        REQUIRE_THAT(first_statement->value(), Equals("cmd4"));
-        auto& block2 = monitor->blocks.back().second;
+        auto& block2 = monitor->blocks.back();
         REQUIRE_THAT(block2.size(), Equals(6));
-        REQUIRE(block2[0] == first_statement);
         statement = dynamic_pointer_cast<SomeStatement>(block2[0]);
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd4"));
@@ -392,28 +347,38 @@ TEST_CASE("Reader", "[reader]") {
             "cmd6\n"
             "cmd7"s);
 
-        reader.run(is);
+        auto metrics = reader.run(is);
+        REQUIRE_THAT(metrics.nlines, Equals(7));
+        REQUIRE_THAT(metrics.nstatements, Equals(6));
+        REQUIRE_THAT(metrics.nblocks, Equals(1));
 
         REQUIRE_FALSE(monitor->blocks.empty());
-        REQUIRE(monitor->blocks.back().first == nullptr);
-        REQUIRE_THAT(monitor->blocks.back().second.size(), Equals(4));
-        // cleanup blocks
-        monitor->blocks.pop_back();
+        REQUIRE_FALSE(monitor->broken_block.empty());
 
         REQUIRE_THAT(monitor->blocks.size(), Equals(1));
         // check first block
-        REQUIRE(monitor->blocks.front().first);
-        auto first_statement = dynamic_pointer_cast<SomeStatement>(monitor->blocks.front().first);
-        REQUIRE(first_statement);
-        REQUIRE_THAT(first_statement->value(), Equals("cmd1"));
-        auto& block1 = monitor->blocks.front().second;
+        auto& block1 = monitor->blocks.front();
         REQUIRE_THAT(block1.size(), Equals(2));
-        REQUIRE(block1[0] == first_statement);
         auto statement = dynamic_pointer_cast<SomeStatement>(block1[0]);
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd1"));
         statement = dynamic_pointer_cast<SomeStatement>(block1[1]);
         REQUIRE(statement);
         REQUIRE_THAT(statement->value(), Equals("cmd2"));
+
+        // check broken block
+        REQUIRE_THAT(monitor->broken_block.size(), Equals(4));
+        statement = dynamic_pointer_cast<SomeStatement>(monitor->broken_block[0]);
+        REQUIRE(statement);
+        REQUIRE_THAT(statement->value(), Equals("cmd4"));
+        statement = dynamic_pointer_cast<SomeStatement>(monitor->broken_block[1]);
+        REQUIRE(statement);
+        REQUIRE_THAT(statement->value(), Equals("cmd5"));
+        statement = dynamic_pointer_cast<SomeStatement>(monitor->broken_block[2]);
+        REQUIRE(statement);
+        REQUIRE_THAT(statement->value(), Equals("cmd6"));
+        statement = dynamic_pointer_cast<SomeStatement>(monitor->broken_block[3]);
+        REQUIRE(statement);
+        REQUIRE_THAT(statement->value(), Equals("cmd7"));
     }
 }

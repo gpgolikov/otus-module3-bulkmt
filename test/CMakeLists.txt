@@ -4,11 +4,8 @@ list(APPEND ${PROJECT_NAME}_SOURCES
     ../src/statement.cpp
     ../src/statement_factory.cpp
     ../src/reader.cpp
-    ../src/interpreter.cpp
-    ../src/logger.cpp
     test_statement.cpp
     test_reader.cpp
-    test_interpreter.cpp
     main.cpp)
 
 add_definitions(-DCATCH_CONFIG_CONSOLE_WIDTH=300)

@@ -1,14 +1,15 @@
 list(APPEND ${PROJECT_NAME}_SOURCES
     statement.cpp
     statement_factory.cpp
-    logger.cpp
     reader.cpp
     interpreter.cpp
     main.cpp)
 
 add_executable(${PROJECT_NAME} ${${PROJECT_NAME}_SOURCES})
 
-target_link_libraries(${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(${PROJECT_NAME} 
+    ${CMAKE_THREAD_LIBS_INIT}
+    CONAN_PKG::range-v3)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
     CXX_STANDARD 17

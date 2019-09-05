@@ -9,7 +9,7 @@ struct Statement;
 using StatementPtr = std::shared_ptr<Statement>;
 using StatementContainer = std::vector<StatementPtr>;
 
-struct Reader;
+class Reader;
 
 struct ReaderSubscriber;
 using ReaderSubscriberPtr = std::shared_ptr<ReaderSubscriber>;

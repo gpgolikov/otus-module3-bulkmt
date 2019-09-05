@@ -48,10 +48,14 @@ struct ReaderImpl {
     StatementFactory statement_factory;
     StatementContainer statements;
 
+    Reader::Metrics metrics;
+
     template <typename State> State& change_state(); 
 
     bool process(std::istream& is);
     void process(std::string line);
+
+    bool read_line(std::istream& is, std::string& line);
 
     void notify_block();
     void notify_unexpected_eof();
@@ -64,6 +68,7 @@ struct InitialState : ReaderState {
     bool process(std::istream& line) override;
 
     ReaderImpl& reader_impl;
+    size_t count {};
 };
 
 struct BlockState : ReaderState {
@@ -95,17 +100,27 @@ State& ReaderImpl::change_state() {
 
 bool ReaderImpl::process(std::istream& is) {
     auto save_state_ptr = state->shared_from_this(); // protect against unexpected deletion
-    statements.clear();
     return state->process(is);
 }
 
 void ReaderImpl::process(std::string line) {
+    ++metrics.nstatements;
     statements.push_back(statement_factory.create(std::move(line)));
 }
 
+bool ReaderImpl::read_line(std::istream& is, std::string& line) {
+    if (!getline(is, line))
+        return false;
+    
+    ++metrics.nlines;
+    return true;
+}
+
 void ReaderImpl::notify_block() {
-    if (reader_impl.statements.empty())
+    if (statements.empty())
         return; // empty block doesn't require notification
+
+    ++metrics.nblocks;
 
     for (auto& subscriber : subscribers)
         subscriber->on_block(statements);
@@ -113,7 +128,7 @@ void ReaderImpl::notify_block() {
 }
 
 void ReaderImpl::notify_unexpected_eof() {
-    if (reader_impl.statements.empty())
+    if (statements.empty())
         return; // empty block doesn't require notification
 
     for (auto& subscriber : subscribers)
@@ -124,7 +139,7 @@ bool InitialState::process(std::istream& input) {
     using namespace std;
 
     string line;
-    if (!getline(input, line)) {
+    if (!reader_impl.read_line(input, line)) {
         // in initial state the end of the stream triggers end of block
         reader_impl.notify_block();
         return false; // end of file or another error
@@ -152,7 +167,7 @@ bool BlockState::process(std::istream& input) {
     using namespace std;
 
     string line;
-    if (!getline(input, line)) {
+    if (!reader_impl.read_line(input, line)) {
         reader_impl.notify_unexpected_eof();
         return false; // end of file or another error
     }
@@ -193,11 +208,15 @@ void Reader::subscribe(ReaderSubscriberPtr subscriber) {
         subscribers.push_back(std::move(subscriber));
 }
 
-void Reader::run(std::istream& input) {
+auto Reader::run(std::istream& input) -> const Metrics& {
+    priv_->metrics = {};
+    priv_->statements.clear();
     priv_->change_state<InitialState>();
     while (priv_->process(input)) {
         // do nothing
     }
+
+    return priv_->metrics;
 }
 
 } // namespace griha
