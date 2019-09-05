@@ -9,7 +9,9 @@
 #include <chrono>
 #include <fstream>
 
-#include <range/v3/all.hpp>
+#include <boost/format.hpp>
+
+#include <range/v3/utility/iterator.hpp>
 
 #include "reader.h"
 #include "reader_subscriber.h"
@@ -136,7 +138,9 @@ void file_job(const StatementContainer& stms) {
     
     const auto now = chrono::system_clock::now();
     const auto now_ns = chrono::duration_cast<chrono::nanoseconds>(now.time_since_epoch());
-    const auto filename = "bulk"s + to_string(now_ns.count()) + ".log"s;
+    const auto filename = ( boost::format { "bulk_%1%_%2%.log"s }
+                                % now_ns.count()
+                                % std::this_thread::get_id() ).str();
 
     Printer printer;
 

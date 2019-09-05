@@ -9,6 +9,7 @@ add_executable(${PROJECT_NAME} ${${PROJECT_NAME}_SOURCES})
 
 target_link_libraries(${PROJECT_NAME} 
     ${CMAKE_THREAD_LIBS_INIT}
+    CONAN_PKG::boost
     CONAN_PKG::range-v3)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES

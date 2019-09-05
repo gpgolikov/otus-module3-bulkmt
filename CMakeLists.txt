@@ -14,6 +14,7 @@ endif()
 include(${CMAKE_BINARY_DIR}/conan.cmake)
 
 conan_cmake_run(REQUIRES
+                    boost/1.70.0@conan/stable
                     Catch2/2.7.2@catchorg/stable
                     range-v3/0.5.0@ericniebler/stable
                 BASIC_SETUP CMAKE_TARGETS
